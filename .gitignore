@@ -25,3 +25,9 @@ web-build/
 # Backend
 backend/node_modules/
 app/node_modules/
+
+# IDEs & Editor
+.vscode/
+.idea/
+.claude/
+CLAUDE.md
