@@ -33,7 +33,7 @@ export default function WelcomeScreen({ onSelect }) {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Antigravity IDE</Text>
+      <Text style={styles.title}>Antigravity Remote IDE</Text>
       
       {!selectedProject ? (
         <>

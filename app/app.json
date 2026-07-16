@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "app",
+    "name": "Antigravity Remote IDE",
+    "slug": "antigravity-remote-ide",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
