@@ -1,0 +1,27 @@
+# NodeJS
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Expo / React Native
+.expo/
+dist/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# macOS
+.DS_Store
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Backend
+backend/node_modules/
+app/node_modules/
