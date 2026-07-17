@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, SectionList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -56,15 +56,24 @@ export default function WelcomeScreen({ onSelect }) {
             <Text style={{color: '#007AFF', marginLeft: 5}}>Cambia Progetto ({selectedProject})</Text>
           </TouchableOpacity>
 
-          <Text style={styles.subtitle}>Seleziona o Inizia una Chat</Text>
-          <TouchableOpacity style={[styles.listItem, {backgroundColor: '#007AFF'}]} onPress={() => onSelect(selectedProject, 'new')}>
-            <Ionicons name="add-circle" size={24} color="#fff" style={styles.icon} />
-            <Text style={[styles.listText, {color: '#fff', fontWeight: 'bold'}]}>Nuova Conversazione</Text>
-          </TouchableOpacity>
-
-          <FlatList
-            data={conversations}
+          <SectionList
+            sections={[
+              { title: `Chat in ${selectedProject}`, data: conversations.filter(c => c.projectName === selectedProject) },
+              { title: 'Altre Chat', data: conversations.filter(c => c.projectName !== selectedProject) }
+            ].filter(s => s.data.length > 0)}
             keyExtractor={item => item.id}
+            ListHeaderComponent={
+              <>
+                <Text style={styles.subtitle}>Seleziona o Inizia una Chat</Text>
+                <TouchableOpacity style={[styles.listItem, {backgroundColor: '#007AFF'}]} onPress={() => onSelect(selectedProject, 'new')}>
+                  <Ionicons name="add-circle" size={24} color="#fff" style={styles.icon} />
+                  <Text style={[styles.listText, {color: '#fff', fontWeight: 'bold'}]}>Nuova Conversazione</Text>
+                </TouchableOpacity>
+              </>
+            }
+            renderSectionHeader={({section: {title}}) => (
+              <Text style={[styles.subtitle, {marginTop: 20, color: '#4da6ff', fontWeight: 'bold'}]}>{title}</Text>
+            )}
             renderItem={({item}) => {
               const date = new Date(item.createdAt);
               const formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
@@ -73,7 +82,9 @@ export default function WelcomeScreen({ onSelect }) {
                   <Ionicons name="chatbubbles" size={24} color="#888" style={styles.icon} />
                   <View style={{flex: 1}}>
                     <Text style={styles.listText} numberOfLines={1}>{item.title}</Text>
-                    <Text style={{color: '#666', fontSize: 12, marginTop: 4}}>{formattedDate}</Text>
+                    <Text style={{color: '#666', fontSize: 12, marginTop: 4}}>
+                      {formattedDate} {item.projectName !== selectedProject ? ` • ${item.projectName}` : ''}
+                    </Text>
                   </View>
                 </TouchableOpacity>
               )

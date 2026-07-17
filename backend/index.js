@@ -9,6 +9,44 @@ const multer = require('multer');
 const { spawn, exec } = require('child_process');
 const chokidar = require('chokidar');
 
+let titleCache = {};
+let lastCacheUpdate = 0;
+
+async function buildTitleCache(brainRoot) {
+    const now = Date.now();
+    if (now - lastCacheUpdate < 60000 && Object.keys(titleCache).length > 0) return titleCache;
+    try {
+        const dirs = fs.readdirSync(brainRoot, { withFileTypes: true });
+        for (let dirent of dirs) {
+            if (!dirent.isDirectory() || dirent.name === 'scratch' || dirent.name === '.system_generated') continue;
+            const transcriptPath = path.join(brainRoot, dirent.name, '.system_generated', 'logs', 'transcript.jsonl');
+            if (fs.existsSync(transcriptPath)) {
+                const fileStream = fs.createReadStream(transcriptPath);
+                const rl = readline.createInterface({ input: fileStream, crlfDelay: Infinity });
+                let lineCount = 0;
+                for await (const line of rl) {
+                    lineCount++;
+                    if (lineCount > 100) break;
+                    if (line.includes('"type":"CONVERSATION_HISTORY"')) {
+                        try {
+                            const parsed = JSON.parse(line);
+                            const content = parsed.content || "";
+                            const regex = /## Conversation ([a-z0-9\-]+): (.*)/g;
+                            let match;
+                            while ((match = regex.exec(content)) !== null) {
+                                titleCache[match[1]] = match[2].trim();
+                            }
+                        } catch(e) {}
+                    }
+                }
+                rl.close();
+            }
+        }
+        lastCacheUpdate = now;
+    } catch (e) {}
+    return titleCache;
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -41,6 +79,8 @@ app.get('/api/conversations', async (req, res) => {
     try {
         if (!fs.existsSync(BRAIN_ROOT)) return res.json({ success: true, conversations: [] });
         
+        await buildTitleCache(BRAIN_ROOT);
+        
         let dirs = fs.readdirSync(BRAIN_ROOT, { withFileTypes: true })
             .filter(dirent => dirent.isDirectory() && dirent.name !== 'scratch')
             .map(dirent => {
@@ -58,8 +98,9 @@ app.get('/api/conversations', async (req, res) => {
         for (let dirent of dirs) {
             const convId = dirent.name;
             const transcriptPath = path.join(BRAIN_ROOT, convId, '.system_generated', 'logs', 'transcript.jsonl');
-            let title = `Sessione ${convId.substring(0, 8)}`;
+            let title = titleCache[convId] || null;
             let createdAt = null;
+            let projectName = "Sconosciuto";
             
             if (fs.existsSync(transcriptPath)) {
                 try {
@@ -73,18 +114,32 @@ app.get('/api/conversations', async (req, res) => {
                             const parsed = JSON.parse(line);
                             if (!createdAt && parsed.created_at) createdAt = parsed.created_at;
                             if (parsed.type === 'USER_INPUT' && parsed.content) {
-                                const match = parsed.content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
-                                if (match && match[1]) {
-                                    title = match[1].trim().substring(0, 40).replace(/\n/g, ' ') + '...';
-                                    break;
+                                // Extract project name
+                                const projMatch = parsed.content.match(/\/Personal_project\/([^/\n"']+)/);
+                                if (projMatch && projectName === "Sconosciuto") {
+                                    let extracted = projMatch[1];
+                                    if (extracted.includes(' -> ')) extracted = extracted.split(' -> ')[0].trim();
+                                    projectName = extracted;
+                                }
+                                
+                                // Extract title
+                                if (!title) {
+                                    const match = parsed.content.match(/<USER_REQUEST>([\s\S]*?)<\/USER_REQUEST>/);
+                                    if (match && match[1]) {
+                                        let rawText = match[1].replace(/<[^>]*>?/gm, '').trim().replace(/\n/g, ' ');
+                                        title = rawText.substring(0, 50);
+                                        if (rawText.length > 50) title += '...';
+                                    }
                                 }
                             }
+                            if (title && projectName !== "Sconosciuto") break;
                         } catch(e) {}
                     }
                     rl.close();
                 } catch(e) {}
             }
-            convs.push({ id: convId, title, createdAt: createdAt || new Date(dirent.mtime).toISOString() });
+            if (!title) title = `Sessione ${convId.substring(0, 8)}`;
+            convs.push({ id: convId, title, projectName, createdAt: createdAt || new Date(dirent.mtime).toISOString() });
         }
         
         res.json({ success: true, conversations: convs });
